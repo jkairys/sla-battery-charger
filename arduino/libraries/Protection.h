@@ -10,6 +10,8 @@ class Protection{
     Protection(int limit, float T, byte pin, char * name);
     void run(int sample);
     void reset();
+    void limit(int limit);
+    int limit();
 
   private:
     uint8_t _pin;

@@ -35,7 +35,8 @@ void Protection::run(int sample){
       t_pickup = millis();
       t_trip = iec_curve(sample);
       t_trip = t_trip + t_pickup;
-      Serial.println(String(millis(), DEC)+"ms "+_name + ": pickup@"+String(sample,DEC));
+      //Serial.println(String(millis(), DEC)+"ms "+_name + ": pickup@"+String(sample,DEC));
+      Serial.println("EP"+_name+String(sample, DEC));
       state = STATE_PICKUP;
     }
   }
@@ -51,11 +52,19 @@ void Protection::run(int sample){
       //Serial.println(sample, DEC);
       //Serial.println(String(millis(), DEC)+ " > " +String(t_pickup + t_trip, DEC));
       state = STATE_TRIPPED;
-      Serial.println(String(millis(), DEC)+"ms "+_name + ": trip@"+String(sample,DEC));
+      Serial.println("ET"+_name+String(sample, DEC));
+      //Serial.println(String(millis(), DEC)+"ms "+_name + ": trip@"+String(sample,DEC));
       trip();
     }
   }
 
+}
+
+int Protection::limit(){
+  return _limit;
+}
+void Protection::limit(int limit){
+  _limit = limit;
 }
 
 void Protection::reset(){
