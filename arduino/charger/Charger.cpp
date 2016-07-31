@@ -5,11 +5,9 @@
 LiquidCrystal_I2C lcd(0x27,20,2);
 
 Charger::Charger() {
-  
-  //analogues.init(PIN_AMPS_IN, PIN_AMPS_OUT, PIN_VOLTS_IN, PIN_VOLTS_OUT);
-  //next_disp = millis();
-
-  
+  a_volts_out = Analogue(PIN_VOLTS_OUT, FILTER_FREQ, MV_PER_BIT);
+  a_amps_out = Analogue(PIN_AMPS_OUT, FILTER_FREQ, MA_PER_BIT);
+  a_amps_in = Analogue(PIN_AMPS_IN, FILTER_FREQ, MA_PER_BIT);
 }
 
 void Charger::init(){
@@ -29,29 +27,38 @@ void Charger::init(){
   // pin 12 is our 'calibrate' pin
   // if low on boot, perform calibration
   Serial.println("Init ADC");
-  analogues.offsets.load();
+
+  a_volts_out.offset(0);
+  a_amps_out.calibrate();
+  a_amps_in.calibrate();
+  
+  //analogues.offsets.load();
   pinMode(PIN_CALIBRATE, INPUT);
   lcd.clear();
   if(!digitalRead(PIN_CALIBRATE)){
     // perform calibration
     lcd.print("Calibrating");
-    analogues.calibrate();  
+    //analogues.calibrate();  
   }else{
-    analogues.offsets.load();
+    //analogues.offsets.load();
   }
   //delay(500);
-  lcd.clear();
-  lcd.print("In: ");
-  lcd.print(analogues.offsets.offset_amps_in, DEC);
-  lcd.setCursor(0,1);
-  lcd.print("Out: ");
-  lcd.println(analogues.offsets.offset_amps_out, DEC);
+  //lcd.clear();
+  //lcd.print("In: ");
+  //lcd.print(analogues.offsets.offset_amps_in, DEC);
+  //lcd.setCursor(0,1);
+  //lcd.print("Out: ");
+  //lcd.println(analogues.offsets.offset_amps_out, DEC);
   //delay(500);
 
   //flt_mv_out_stats.setWindowSecs( 20.0/100.0 );
 
   // go to constant current mode
-  mode = MODE_CONSTANT_CURRENT;
+  //setMode(CURRENT);
+  setMode(VOLTAGE);
+
+  mv_target= 13600;
+  ma_target = 2000;
 }
 
 
@@ -59,43 +66,100 @@ void Charger::disp(){
   
   lcd.setCursor(0,0);
   lcd.print("In: ");
-  lcd.print((float)analogues.ma_in/1000.0,1);
+  lcd.print((float)a_amps_in.value()/1000.0,1);
   lcd.print("A      ");
   lcd.setCursor(0,1);
   lcd.print("Out: ");
-  lcd.print((float)analogues.ma_out/1000.0,1);
+  lcd.print((float)a_amps_out.value()/1000.0,1);
   lcd.print("A ");
-  lcd.print((float)analogues.mv_out/1000.0,1);
+  lcd.print((float)a_volts_out.value()/1000.0,1);
   lcd.print("V ");
+}
+
+void Charger::setMode(CONTROL_MODE newMode){
+  control_mode = newMode;
+  if(control_mode == CURRENT){
+    kP = 10;
+    kI = 10;
+  }else if(control_mode == VOLTAGE){
+    kP = 15;
+    kI = 1;
+  }
+  integral = 0;
+}
+
+void Charger::pidController(){
+  
+
+  if(control_mode == CURRENT){
+    // basic P controller
+    error = ma_target - a_amps_out.value();
+    
+    // scale it back into something sensibe
+    error = error/MA_PER_BIT;
+    
+  }else if(control_mode == VOLTAGE){
+    // basic P controller
+    error = mv_target - a_volts_out.value();
+    
+    // scale it back into something sensibe
+    error = error/MV_PER_BIT;
+
+    //controlVolts();  
+  }
+
+  // integrate
+  integral += error;
+  integral = integral > 65000 ? 65000 : integral;
+  integral = integral < 0 ? 0 : integral;
+  
+  // apply gains
+  duty = kP * error + kI * integral;
+
+  // scale everything back
+  //duty = duty;
+  
+  if(duty > 65535) duty = 65535;
+  if(duty < 0) duty = 0;
+
+  //pwm.analogWrite(0);
+  pwm.analogWrite(duty);
 }
 
 
 
-
 void Charger::go(){
-
-  analogues.read();
+  //for(uint16_t i = 0; i< 10; i++){
+  a_volts_out.measure(100);
+  a_amps_in.measure(100);
+  a_amps_out.measure(100);    
+  //}
+  
+  //analogues.read();
+  pidController();
 
   // determine the charge mode and setpoint
-  //controlAmps();
-  //controlVolts();
   
   if(millis() > next_disp){
     disp();
     next_disp = millis() + 1000;
+  }
+  
+  if(millis() > next_serial){
+    next_serial = millis() + 100;
     //Serial.print((float)mv_target/1000,2);
     //Serial.print("V, ");
-    Serial.print((float)analogues.mv_out/1000,2);
+    Serial.print((float)a_volts_out.value()/1000,2);
     Serial.print("V, ");
-    Serial.print((float)analogues.ma_in/1000,2);
+    Serial.print((float)a_amps_in.value()/1000,2);
     Serial.print("A ,");
-    Serial.print((float)analogues.ma_out/1000,2);
-    Serial.println("A");
-    //Serial.print(error);
-    //Serial.print(", ");
-    //Serial.print(duty);
-    //Serial.print(", ");
-    //Serial.println(integral);
+    Serial.print((float)a_amps_out.value()/1000,2);
+    Serial.print("A, ");
+    Serial.print(error);
+    Serial.print(", ");
+    Serial.print(duty);
+    Serial.print(", ");
+    Serial.println(integral);
   }
 }
 
@@ -118,7 +182,7 @@ void Offsets::load(){
   offset_amps_in = o.offset_amps_in;
 
 }
-
+/*
 
 Analogues::Analogues(){
   flt_mv_out.setAsFilter( LOWPASS_BUTTERWORTH, 5.0 ); // 100Hz cutoff freq
@@ -177,4 +241,4 @@ void Analogues::read(){
   ma_in = getMA(PIN_AMPS_IN);
   ma_out = getMA(PIN_AMPS_OUT);
   mv_out = getMV(PIN_VOLTS_OUT);
-}
+}*/

@@ -4,12 +4,18 @@ Analogue::Analogue(){
 
 }
 
-Analogue::Analogue(uint8_t pin, float freq, short scaleFactor) {
+Analogue::Analogue(uint8_t pin, float freq, int16_t scaleFactor) {
   pinMode(pin, INPUT);
+  _pin = pin;
   _freq = freq;
   _scaleFactor = scaleFactor;
   _flt.setAsFilter( LOWPASS_BUTTERWORTH, freq);
   _raw = 0;
+}
+
+// perform a single measurement
+uint16_t Analogue::measure(){
+  return measure(1);;
 }
 
 // measure(n)
@@ -27,7 +33,7 @@ uint16_t Analogue::measure(unsigned int n){
 
 // calibrate()
 // Determine the zero-offset by recording the ADC measurement (must not have any signal present)
-void Analogue::calibate(){
+void Analogue::calibrate(){
   // get a reading
   measure(1000);
   _offset = _raw;
@@ -35,9 +41,10 @@ void Analogue::calibate(){
 
 // value()
 // Return the output value from the filter
-int Analogue::value(){
+long Analogue::value(){
   long tmp = _flt.output();
   tmp = tmp - _offset;
   tmp = tmp * _scaleFactor;
+  if(tmp < 0 and tmp > -100) tmp = 0;
   return tmp;
 }
