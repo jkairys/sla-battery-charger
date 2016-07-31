@@ -4,7 +4,7 @@ Analogue::Analogue(){
 
 }
 
-Analogue::Analogue(uint8_t pin, float freq, short scaleFactor) {
+Analogue::Analogue(uint8_t pin, float freq, int16_t scaleFactor) {
   pinMode(pin, INPUT);
   _pin = pin;
   _freq = freq;
