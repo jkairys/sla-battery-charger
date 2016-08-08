@@ -55,10 +55,12 @@ void Charger::init(){
 
   // go to constant current mode
   //setMode(CURRENT);
-  setMode(VOLTAGE);
-
+  setMode(CURRENT);
+  stage = BULK;
+  
   mv_target= 13600;
-  ma_target = 2000;
+  ma_target = I_BULK * 1000;
+  next_disp = millis() + 2000;
 }
 
 
@@ -82,7 +84,7 @@ void Charger::setMode(CONTROL_MODE newMode){
     kP = 10;
     kI = 10;
   }else if(control_mode == VOLTAGE){
-    kP = 15;
+    kP = 5;
     kI = 1;
   }
   integral = 0;
@@ -127,12 +129,26 @@ void Charger::pidController(){
 }
 
 
+unsigned long next_assess = millis();
+unsigned long last_mode_change = 0;
+float amps_out_long_term_avg = NULL;
+float amps_out_medium_term_avg = NULL;
+
+
+
+void Charger::stageStr(char * buf){
+  if(stage == BULK) strcpy(buf, "BULK");
+  if(stage == ABSORB) strcpy(buf, "ABSORB");
+  if(stage == FLOAT) strcpy(buf, "FLOAT");
+}
+
+byte mute_ttl = 0;
 
 void Charger::go(){
   //for(uint16_t i = 0; i< 10; i++){
   a_volts_out.measure(100);
-  a_amps_in.measure(100);
-  a_amps_out.measure(100);    
+  a_amps_in.measure(10);
+  a_amps_out.measure(10);    
   //}
   
   //analogues.read();
@@ -141,14 +157,47 @@ void Charger::go(){
   // determine the charge mode and setpoint
   
   if(millis() > next_disp){
+    if(amps_out_long_term_avg == NULL){
+      amps_out_long_term_avg = a_amps_out.value()/1000.0;
+      amps_out_medium_term_avg = a_amps_out.value()/1000.0;
+    }
+
+    amps_out_long_term_avg = a_amps_out.value()/1000.0 * ALPHA_LONG_TERM + amps_out_long_term_avg * (1-ALPHA_LONG_TERM);
+    amps_out_medium_term_avg = a_amps_out.value()/1000.0 * ALPHA_MEDIUM_TERM + amps_out_medium_term_avg * (1-ALPHA_MEDIUM_TERM);
+    
     disp();
     next_disp = millis() + 1000;
+    
+    // assess mode
+    if(stage == BULK){
+      if(mute_ttl == 0 && a_volts_out.value() > V_ABSORB*1000.0){
+        setMode(VOLTAGE);
+        stage = ABSORB;
+        mv_target = V_ABSORB * 1000.0;
+        mute_ttl = 5;
+        amps_out_long_term_avg = amps_out_medium_term_avg + .5;
+      }  
+    }else if(stage== ABSORB){
+      if(mute_ttl== 0 && abs(amps_out_long_term_avg - amps_out_medium_term_avg) < 0.05){
+        setMode(VOLTAGE);
+        stage = FLOAT;
+        mv_target = V_FLOAT * 1000;
+        mute_ttl = 5;
+      }
+    }else if(stage == FLOAT){
+      // cool. we'll just chill here
+    }
+    if(mute_ttl > 0) mute_ttl--;
+    
   }
   
   if(millis() > next_serial){
     next_serial = millis() + 100;
     //Serial.print((float)mv_target/1000,2);
     //Serial.print("V, ");
+    char buf[10] = "";
+    stageStr(buf);
+    Serial.print(String(buf)+ ",");
     Serial.print((float)a_volts_out.value()/1000,2);
     Serial.print("V, ");
     Serial.print((float)a_amps_in.value()/1000,2);
@@ -159,7 +208,9 @@ void Charger::go(){
     Serial.print(", ");
     Serial.print(duty);
     Serial.print(", ");
-    Serial.println(integral);
+    Serial.print(integral);
+    Serial.print(", ");
+    Serial.println(String(amps_out_medium_term_avg,1) + "A, "+String(amps_out_long_term_avg,1)+"A");
   }
 }
 
@@ -180,65 +231,4 @@ void Offsets::load(){
   EEPROM.get(0, o);
   offset_amps_out = o.offset_amps_out;
   offset_amps_in = o.offset_amps_in;
-
 }
-/*
-
-Analogues::Analogues(){
-  flt_mv_out.setAsFilter( LOWPASS_BUTTERWORTH, 5.0 ); // 100Hz cutoff freq
-  flt_ma_in.setAsFilter( LOWPASS_BUTTERWORTH, 5.0 ); // 100Hz cutoff freq
-  flt_ma_out.setAsFilter( LOWPASS_BUTTERWORTH, 5.0 ); // 100Hz cutoff freq
-}
-
-void Analogues::calibrate(){
-  offsets.offset_amps_in = getADCAvg(PIN_AMPS_IN, 10000);
-  offsets.offset_amps_out = getADCAvg(PIN_AMPS_OUT, 10000);
-  // save values
-  offsets.save();
-}
-
-unsigned int Analogues::getADCAvg(byte pin, unsigned int n){
-  unsigned long tmp=0;
-  unsigned int i;
-  for(i=0;i<n;i++){
-    tmp = tmp + analogRead(pin); 
-  }
-  return tmp / n;
-}
-
-
-int Analogues::getMV(byte pin){
-  long tmp = getADCAvg(pin, 50);
-  flt_mv_out.input(tmp);
-  //flt_mv_out_stats.input( flt_mv_out.output() );
-  //Serial.println(tmp);
-  tmp = flt_mv_out.output();
-  tmp = tmp * MV_PER_BIT;
-  if (tmp < 100) tmp = 0;
-  return tmp;
-}
-
-int Analogues::getMA(byte pin){
-  long tmp = getADCAvg(pin, 50);
-
-  if(pin == PIN_AMPS_IN){
-    tmp = tmp - offsets.offset_amps_in;
-    flt_ma_in.input(tmp);
-    tmp = flt_ma_in.output();
-  }
-  if(pin == PIN_AMPS_OUT){
-    tmp = tmp - offsets.offset_amps_out;
-    flt_ma_out.input(tmp);
-    tmp = flt_ma_out.output();
-  }
-  
-  tmp = tmp * MA_PER_BIT;
-  if (tmp < 100) tmp = 0;
-  return tmp;
-}
-
-void Analogues::read(){
-  ma_in = getMA(PIN_AMPS_IN);
-  ma_out = getMA(PIN_AMPS_OUT);
-  mv_out = getMV(PIN_VOLTS_OUT);
-}*/

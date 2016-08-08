@@ -24,10 +24,21 @@
 #define MA_PER_BIT 74
 #define MV_PER_BIT 30
 
+#define I_BULK 5.0
+#define V_FLOAT 13.6
+#define V_ABSORB 14.8
+
+#define ALPHA_LONG_TERM 0.01
+#define ALPHA_MEDIUM_TERM 0.1
+
+
 enum CONTROL_MODE { 
   CURRENT, 
-  VOLTAGE, 
-  FLOAT
+  VOLTAGE
+};
+
+enum CHARGER_STAGE{
+  OFF, BULK, ABSORB, FLOAT
 };
 
 struct OffsetComponents {
@@ -92,6 +103,7 @@ class Charger{
   public:
 
     CONTROL_MODE control_mode;
+    CHARGER_STAGE stage;
     //Analogues analogues;
 
     Analogue a_amps_in;
@@ -107,6 +119,7 @@ class Charger{
     //void loadSettings();
     //void saveSettings();
     void go();
+    void stageStr(char * buf);
 
 
 };
