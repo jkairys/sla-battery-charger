@@ -50,5 +50,5 @@ long Analogue::value(){
   tmp = tmp - _offset;
   tmp = tmp * _scaleFactor;
   if(tmp < 0 and tmp > -100) tmp = 0;
-  return tmp;
+  return tmp/10;
 }

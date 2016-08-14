@@ -5,13 +5,13 @@
 LiquidCrystal_I2C lcd(0x27,20,2);
 
 Charger::Charger() {
-  a_volts_out = Analogue(PIN_VOLTS_OUT, FILTER_FREQ, MV_PER_BIT);
-  a_amps_out = Analogue(PIN_AMPS_OUT, FILTER_FREQ, MA_PER_BIT);
-  a_amps_in = Analogue(PIN_AMPS_IN, FILTER_FREQ, MA_PER_BIT);
+  a_volts_out = Analogue(PIN_VOLTS_OUT, FILTER_FREQ, MV10_PER_BIT);
+  a_amps_out = Analogue(PIN_AMPS_OUT, FILTER_FREQ, -1*MA10_PER_BIT);
+  a_amps_in = Analogue(PIN_AMPS_IN, FILTER_FREQ, MA10_PER_BIT);
 }
 
 void Charger::init(){
-  Serial.begin(115200);
+  Serial.begin(9600);
   // set the LCD address to 0x27 for a 16 chars and 2 line display
   // Display
   Serial.println("Init PWM");
@@ -58,7 +58,6 @@ void Charger::init(){
   setMode(CURRENT);
   stage = BULK;
   
-  mv_target= 13600;
   ma_target = I_BULK * 1000;
   next_disp = millis() + 2000;
 }
@@ -82,7 +81,7 @@ void Charger::setMode(CONTROL_MODE newMode){
   control_mode = newMode;
   if(control_mode == CURRENT){
     kP = 10;
-    kI = 10;
+    kI = 1;
   }else if(control_mode == VOLTAGE){
     kP = 5;
     kI = 1;
@@ -98,14 +97,14 @@ void Charger::pidController(){
     error = ma_target - a_amps_out.value();
     
     // scale it back into something sensibe
-    error = error/MA_PER_BIT;
+    error = error/(MA10_PER_BIT/10);
     
   }else if(control_mode == VOLTAGE){
     // basic P controller
     error = mv_target - a_volts_out.value();
     
     // scale it back into something sensibe
-    error = error/MV_PER_BIT;
+    error = error/(MV10_PER_BIT/10);
 
     //controlVolts();  
   }
@@ -146,9 +145,9 @@ byte mute_ttl = 0;
 
 void Charger::go(){
   //for(uint16_t i = 0; i< 10; i++){
-  a_volts_out.measure(100);
-  a_amps_in.measure(10);
-  a_amps_out.measure(10);    
+  a_volts_out.measure(200);
+  //a_amps_in.measure(10);
+  a_amps_out.measure(500);    
   //}
   
   //analogues.read();
@@ -192,7 +191,7 @@ void Charger::go(){
   }
   
   if(millis() > next_serial){
-    next_serial = millis() + 100;
+    next_serial = next_serial + 500;
     //Serial.print((float)mv_target/1000,2);
     //Serial.print("V, ");
     char buf[10] = "";
@@ -200,8 +199,8 @@ void Charger::go(){
     Serial.print(String(buf)+ ",");
     Serial.print((float)a_volts_out.value()/1000,2);
     Serial.print("V, ");
-    Serial.print((float)a_amps_in.value()/1000,2);
-    Serial.print("A ,");
+    //Serial.print((float)a_amps_in.value()/1000,2);
+    //Serial.print("A ,");
     Serial.print((float)a_amps_out.value()/1000,2);
     Serial.print("A, ");
     Serial.print(error);

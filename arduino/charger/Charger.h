@@ -11,9 +11,9 @@
 
 
 // Configurable Options
-#define PIN_AMPS_IN A0
+#define PIN_AMPS_IN A2
 #define PIN_AMPS_OUT A1
-#define PIN_VOLTS_OUT A2
+#define PIN_VOLTS_OUT A0
 #define PIN_VOLTS_IN -1
 
 #define FILTER_FREQ 1.0
@@ -21,14 +21,14 @@
 #define PIN_DUTY 9
 #define PIN_CALIBRATE 12
 
-#define MA_PER_BIT 74
-#define MV_PER_BIT 30
+#define MA10_PER_BIT 740
+#define MV10_PER_BIT 324
 
-#define I_BULK 5.0
-#define V_FLOAT 13.6
-#define V_ABSORB 14.8
+#define I_BULK 2.0
+#define V_FLOAT 13.5*2
+#define V_ABSORB 14.5*2
 
-#define ALPHA_LONG_TERM 0.01
+#define ALPHA_LONG_TERM 0.001
 #define ALPHA_MEDIUM_TERM 0.1
 
 

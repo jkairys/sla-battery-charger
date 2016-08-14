@@ -6,7 +6,7 @@
 class Analogue{
   public:
     Analogue();
-    Analogue(uint8_t pin, float freq, int16_t scaleFactor);
+    Analogue(uint8_t pin, float freq, int16_t scaleFactor10);
 
     uint16_t measure();
     uint16_t measure(uint16_t val);
